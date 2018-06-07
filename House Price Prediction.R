@@ -2,16 +2,43 @@
 rm(list = ls())
 options(scipen = 999)
 library(dplyr)
+library(data.table)
 library(summaryR)
 library(reshape2)
+library(dummies)
 
 
 #### Reading the data set ####
 
 train <- read.csv("./Source/train.csv", header = T, check.names = F)
-# head(train) summary(train) str(train) View(summaryR(train))
+# head(train) summary(train) str(train) View(summaryR(train)) str(train)
 
-train <- data.table(train)
+#### FUNCTIONS FOR PREPARING DATA #######
+
+
+### Function for fixing Outliers
+fixOutliers <- function(x, col, method = "mean") {
+  mn <- mean(x[,col], na.rm = T)
+  md <- median(x[,col], na.rm = T)
+  P25 <- quantile(x[col], na.rm = T,0.25)
+  P75 <- quantile(x[col], na.rm = T,0.75)
+  IQR <- P75 - P25
+  OutlierUpperLimit <- P75 + 1.5*(IQR)
+  OutlierLowerLimit <- P25 - 1.5*(IQR)
+  
+  for (i in 1:nrow(x)) {
+    if (method == "mean") {
+      x[i,col] <- ifelse(x[i,col] < OutlierLowerLimit | x[i,col] > OutlierUpperLimit, mn,x[i,col])
+    }
+    else {
+      x[i,col] <- ifelse(x[i,col] < OutlierLowerLimit | x[i,col] > OutlierUpperLimit, md,x[i,col])
+    }
+  }
+  return(x)
+}
+
+
+### Function for retriving all numeric columns
 
 getNumericCols <- function(x) {
   keepCols <- c()
@@ -31,25 +58,8 @@ for (i in 1:ncol(x)) {
   
 numericCols <- getNumericCols(train)
 
-train <- within(train, {
-  # Relabel MSSubClass
-  MSSubClass.Cat <- factor(MSSubClass, levels = 1:16, labels = c("1-STORY 1946 & NEWER ALL STYLES",
-                                                                 "1-STORY 1945 & OLDER",
-                                                                 "1-STORY W/FINISHED ATTIC ALL AGES",
-                                                                 "1-1/2 STORY - UNFINISHED ALL AGES",
-                                                                 "1-1/2 STORY FINISHED ALL AGES",
-                                                                 "2-STORY 1946 & NEWER",
-                                                                 "2-STORY 1945 & OLDER",
-                                                                 "2-1/2 STORY ALL AGES",
-                                                                 "SPLIT OR MULTI-LEVEL",
-                                                                 "SPLIT FOYER",
-                                                                 "DUPLEX - ALL STYLES AND AGES",
-                                                                 "1-STORY PUD (Planned Unit Development) - 1946 & NEWER",
-                                                                 "1-1/2 STORY PUD - ALL AGES",
-                                                                 "2-STORY PUD - 1946 & NEWER",
-                                                                 "PUD - MULTILEVEL - INCL SPLIT LEV/FOYER",
-                                                                 "2 FAMILY CONVERSION - ALL STYLES AND AGES"
-  ))
-})
 
-train[1:20,.(MSSubClass, MSSubClass.Cat)]
+### Fixing Outliers for LotFrontage
+
+train <- fixOutliers(train, "LotFrontage", method = "mean")
+
